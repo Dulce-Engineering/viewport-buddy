@@ -92,12 +92,11 @@ class Viewport_Buddy extends HTMLElement
     }
     else
     {
-      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const event_pos = {x: event.offsetX, y: event.offsetY};
       this.cmd = 
       {
         id: "pan", 
-        event_x: event.offsetX, 
-        event_y: event.offsetY, 
+        event_pos,
         camera_pos: {...this.camera.pos}
       };
     }
@@ -129,11 +128,12 @@ class Viewport_Buddy extends HTMLElement
     }
     else if (this.cmd && this.cmd.id == "pan")
     {
-      const canvas_origin = this.To_Canvas_Pt(this.cmd.event_x, this.cmd.event_y);
-      const canvas_now = this.To_Canvas_Pt(event.offsetX, event.offsetY);
-      const d = {x: canvas_now.x-canvas_origin.x, y: canvas_now.y-canvas_origin.y};
-      this.camera.pos.x = this.cmd.camera_pos.x - d.x;
-      this.camera.pos.y = this.cmd.camera_pos.y - d.y;
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const origin_pos = this.To_Canvas_Pt(this.cmd.event_pos.x, this.cmd.event_pos.y);
+      const offset = {x: event_pos.x-origin_pos.x, y: event_pos.y-origin_pos.y};
+      
+      this.camera.pos.x = this.cmd.camera_pos.x - offset.x;
+      this.camera.pos.y = this.cmd.camera_pos.y - offset.y;
 
       this.Render_Update();
     }
