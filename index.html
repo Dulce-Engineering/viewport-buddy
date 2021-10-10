@@ -4,28 +4,80 @@
   <head>
     <title>Viewport Buddy</title>
     <style>
+      body
+      {
+        margin: 20px;
+      }
+      #viewport
+      {
+        width: 1000px;
+        height: 1000px;
+      }
     </style>
     <script type="module">
       import Viewport_Buddy from "/components/src/Viewport_Buddy.mjs";
 
       customElements.define('viewport-buddy', Viewport_Buddy);
+      const viewport = document.getElementById("viewport");
+
+      const house = new Path2D();
+      house.moveTo(100, 0);
+      house.lineTo(0, 100);
+      house.lineTo(-100, 0);
+      house.lineTo(-100, -100);
+      house.lineTo(-20, -100);
+      house.lineTo(-20, -50);
+      house.lineTo(20, -50);
+      house.lineTo(20, -100);
+      house.lineTo(100, -100);
+      house.closePath();
+
+      const town =
+      [
+        {
+          id: "blue house",
+          pos: {x: 200, y: 200},
+          scale: {x: 1, y: 1},
+          angle: 0,
+          path: house,
+          Render(ctx)
+          {
+            ctx.fillStyle = "#00f";
+            ctx.fill(house);
+          }
+        },
+        {
+          id: "green house",
+          pos: {x: 200, y: -200},
+          scale: {x: 1, y: 1},
+          angle: 0,
+          path: house,
+          Render(ctx)
+          {
+            ctx.fillStyle = "#0f0";
+            ctx.fill(house);
+          }
+        },
+        {
+          id: "red house",
+          pos: {x: -200, y: 200},
+          scale: {x: 1, y: 1},
+          angle: 0,
+          path: house,
+          Render(ctx)
+          {
+            ctx.fillStyle = "#f00";
+            ctx.fill(house);
+          }
+        }
+      ];
 
       window.onload = Main;
       function Main()
       {
-        const thing =
-        {
-          pos: {x: 300, y: 300},
-          scale: {x: 0.5, y: 0.5},
-          angle: 1,
-          Render(ctx)
-          {
-            ctx.fillRect(-50, -50, 100, 100);
-          }
-        };
-
-        const viewport = document.getElementById("viewport");
-        viewport.drawables = [thing];
+        viewport.origin.strokeStyle = "#0f0";
+        viewport.canvas.style.backgroundColor = "#000";
+        viewport.drawables = town;
       }
     </script>
   </head>

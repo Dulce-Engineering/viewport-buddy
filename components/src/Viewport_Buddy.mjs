@@ -5,67 +5,23 @@ class Viewport_Buddy extends HTMLElement
   {
     super();
     this.shapes = null;
+    this.sys_shapes = [];
     this.size = {width: 1000, height: 1000};
-    this.camera = {pos: {x: 150, y: 150}, scale: {x: 1, y: 1}, angle: 0};
+    this.camera = {pos: {x: 0, y: 0}, scale: {x: 1, y: 1}, angle: 0};
+    this.origin = {strokeStyle: "#fff", lineWidth: 2};
+    this.marks = {strokeStyle: "#050", lineWidth: 1, step: 100};
         
     this.attachShadow({mode: 'open'});
 
-    //this.OnMouseMove_Canvas = this.OnMouseMove_Canvas.bind(this);
-    //this.OnMouseDown_Canvas = this.OnMouseDown_Canvas.bind(this);
-    //this.OnMouseUp_Canvas = this.OnMouseUp_Canvas.bind(this);
-    //this.Render_Update = this.Render_Update.bind(this);
+    this.OnMouseMove_Canvas = this.OnMouseMove_Canvas.bind(this);
+    this.OnMouseDown_Canvas = this.OnMouseDown_Canvas.bind(this);
+    this.OnMouseUp_Canvas = this.OnMouseUp_Canvas.bind(this);
     this.OnWheel = this.OnWheel.bind(this);
   }
 
   connectedCallback()
   {
     this.Render();
-  }
-
-  Set_Transform(trn, scl)
-  {
-    if (trn)
-    {
-      this.ctx.trn = trn;
-    }
-    if (scl)
-    {
-      this.ctx.scl = scl;
-    }
-
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.translate(this.ctx.trn.x, this.ctx.trn.y);
-    this.ctx.scale(this.ctx.scl.x, this.ctx.scl.y);
-  }
-
-  Disable_Events()
-  {
-    this.canvas.removeEventListener('mousemove', this.OnMouseMove_Canvas);
-    this.canvas.removeEventListener('mousedown', this.OnMouseDown_Canvas);
-    this.canvas.removeEventListener('mouseup', this.OnMouseUp_Canvas);
-  }
-
-  Enable_Events()
-  {
-    this.canvas.addEventListener('mousemove', this.OnMouseMove_Canvas);
-    this.canvas.addEventListener('mousedown', this.OnMouseDown_Canvas);
-    this.canvas.addEventListener('mouseup', this.OnMouseUp_Canvas);
-  }
-
-  Set_Shapes(shapes)
-  {
-    this.shapes = shapes;
-    this.remote_ctrl.Set_Shapes(shapes);
-
-    this.Render_Update(this.ctx, shapes);
-  }
-
-  Resize(width, height)
-  {
-    this.style.width = width + "px";
-    this.style.height = height + "px";
-    this.Init_Canvas(this.ctx.zoom, width, height, this.ctx.line_width);
-    this.Render_Update(this.ctx, this.shapes);
   }
 
   // Fields =======================================================================================
@@ -76,85 +32,118 @@ class Viewport_Buddy extends HTMLElement
     this.Render_Update();
   }
 
-  // Events =======================================================================================
-
-  OnMouseMove_Canvas(event)
+  set mode(mode_id)
   {
-    let shape;
-
-    if (this.cmd && this.cmd.id == "pan")
+    this.cmd = null;
+    if (mode_id == "pan")
     {
-      const dx = event.offsetX - this.cmd.x;
-      const dy = event.offsetY - this.cmd.y;
-      
-      const c_pt = { x: this.cmd.o.x + dx, y: this.cmd.o.y + dy };
-      this.Set_Transform(c_pt, null);
-      this.Update();
+      this.canvas.addEventListener("wheel", this.OnWheel);
+      this.canvas.addEventListener('mousemove', this.OnMouseMove_Canvas);
+      this.canvas.addEventListener('mousedown', this.OnMouseDown_Canvas);
+      this.canvas.addEventListener('mouseup', this.OnMouseUp_Canvas);
     }
-    else if (this.shapes && this.shapes.length>0)
+    else
     {
-      for (let i=0; i<this.shapes.length; i++)
-      {
-        shape = this.shapes[i];
-        if (shape.On_Mouse_Move)
-        {
-          shape.On_Mouse_Move(event, this.ctx);
-        }
-      }
-      this.Update();
+      this.canvas.removeEventListener("wheel", this.OnWheel);
+      this.canvas.removeEventListener('mousemove', this.OnMouseMove_Canvas);
+      this.canvas.removeEventListener('mousedown', this.OnMouseDown_Canvas);
+      this.canvas.removeEventListener('mouseup', this.OnMouseUp_Canvas);
     }
   }
 
+  // Events =======================================================================================
+
   OnMouseDown_Canvas(event)
   {
-    let shape, hit = false;
-
-    if (this.shapes && this.shapes.length>0)
+    const shape = this.Drawable_Selected(event.offsetX, event.offsetY);
+    if (shape && shape.type == "rotate")
     {
-      for (let i=0; i<this.shapes.length; i++)
+      this.cmd = 
       {
-        shape = this.shapes[i];
-        if (shape.On_Mouse_Down)
-        {
-          hit = hit || shape.On_Mouse_Down(event, this.ctx);
-        }
-      }
+        id: "rotate", 
+        event_x: event.offsetX, 
+        event_y: event.offsetY, 
+        shape
+      };
     }
-
-    if (!hit)
+    else if (shape && shape.type == "scale")
     {
-      this.cmd = { id: "pan", x: event.offsetX, y: event.offsetY, o: this.To_Screen_Pt(this.ctx, 0, 0) };
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const offset = {x: event_pos.x-shape.selected_shape.pos.x, y: event_pos.y-shape.selected_shape.pos.y};
+      this.cmd = 
+      {
+        id: "scale", 
+        offset,
+        shape,
+        original_scale: {...shape.selected_shape.scale}
+      };
     }
-
-    if (hit)
+    else if (shape)
     {
-      this.Update();
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const offset = {x: event_pos.x-shape.pos.x, y: event_pos.y-shape.pos.y};
+      this.Select_Drawable(shape);
+      this.cmd = 
+      {
+        id: "move", 
+        offset,
+        shape
+      };
+    }
+    else
+    {
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      this.cmd = 
+      {
+        id: "pan", 
+        event_x: event.offsetX, 
+        event_y: event.offsetY, 
+        camera_pos: {...this.camera.pos}
+      };
+    }
+  }
+
+  OnMouseMove_Canvas(event)
+  {
+    if (this.cmd && this.cmd.id == "move")
+    {
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const shape = this.cmd.shape;
+
+      shape.pos = 
+        {x: event_pos.x-this.cmd.offset.x, y: event_pos.y-this.cmd.offset.y};
+
+      this.Render_Update();
+    }
+    else if (this.cmd && this.cmd.id == "scale")
+    {
+      const shape = this.cmd.shape.selected_shape;
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const offset = {x: event_pos.x-shape.pos.x, y: event_pos.y-shape.pos.y};
+      const event_ratio = {x: offset.x/this.cmd.offset.x, y: offset.y/this.cmd.offset.y};
+
+      shape.scale = 
+        {x: this.cmd.original_scale.x*event_ratio.x, y: this.cmd.original_scale.y*event_ratio.y};
+
+      this.Render_Update();
+    }
+    else if (this.cmd && this.cmd.id == "pan")
+    {
+      const canvas_origin = this.To_Canvas_Pt(this.cmd.event_x, this.cmd.event_y);
+      const canvas_now = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const d = {x: canvas_now.x-canvas_origin.x, y: canvas_now.y-canvas_origin.y};
+      this.camera.pos.x = this.cmd.camera_pos.x - d.x;
+      this.camera.pos.y = this.cmd.camera_pos.y - d.y;
+
+      this.Render_Update();
     }
   }
 
   OnMouseUp_Canvas(event)
   {
-    let shape, has_change;
-
     if (this.cmd)
     {
       this.cmd = null;
-    }
-    else if (this.shapes && this.shapes.length>0)
-    {
-      for (let i=0; i<this.shapes.length; i++)
-      {
-        shape = this.shapes[i];
-        if (shape.On_Mouse_Up)
-        {
-          has_change = shape.On_Mouse_Up(event, this.ctx);
-          if (has_change && this.on_change_fn)
-          {
-            this.on_change_fn(shape);
-          }
-        }
-        this.Update();
-      }
     }
   }
 
@@ -193,34 +182,34 @@ class Viewport_Buddy extends HTMLElement
     let shape;
 
     this.ctx.save();
-    this.ctx.scale(this.camera.scale.x, this.camera.scale.y);
-    this.ctx.translate(-this.camera.pos.x, -this.camera.pos.y);
-    this.ctx.rotate(this.camera.angle);
+    this.Apply_Camera();
 
     this.Clr();
-    if (this.shapes && this.shapes.length>0)
+    this.Render_Origin();
+
+    this.Render_Shapes(this.shapes);
+    this.Render_Shapes(this.sys_shapes);
+
+    this.ctx.restore();
+  }
+  
+  Render_Shapes(shapes)
+  {
+    if (shapes && shapes.length>0)
     {
-      this.ctx.save();
-      for (let i=0; i<this.shapes.length; i++)
+      for (const shape of shapes)
       {
-        shape = this.shapes[i];
-        this.ctx.translate(shape.pos.x, shape.pos.y);
-        this.ctx.scale(shape.scale.x, shape.scale.y);
-        this.ctx.rotate(shape.angle);
+        this.ctx.save();
+        this.Apply_Drawable(shape);
         if (shape.Render)
         {
           shape.Render(this.ctx);
         }
+        this.ctx.restore();
       }
-      this.ctx.restore();
     }
-
-    this.ctx.fillStyle ="green";
-    this.ctx.fillRect(this.camera.pos.x-10, this.camera.pos.y-10, 20, 20);
-    this.Render_Origin();
-    this.ctx.restore();
   }
-  
+
   Clr()
   {
     const p1 = this.To_Canvas_Pt(0, 0);
@@ -230,34 +219,49 @@ class Viewport_Buddy extends HTMLElement
 
   Render_Origin()
   {
-    this.ctx.save();
-    this.ctx.strokeStyle = "#000";
-    this.ctx.lineWidth = 1;
-
     const p1 = this.To_Canvas_Pt(0, 0);
     const p2 = this.To_Canvas_Pt(this.ctx.canvas.width, this.ctx.canvas.height);
     
+    this.ctx.strokeStyle = this.marks.strokeStyle;
+    this.ctx.lineWidth = this.marks.lineWidth;
+    const step = this.marks.step;
+    for (let x = Math.ceil(p1.x/step)*step; x < p2.x; x += step)
+    {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, p1.y);
+      this.ctx.lineTo(x, p2.y);
+      this.ctx.stroke();
+    }
+
+    for (let y = Math.ceil(p2.y/step)*step; y < p1.y; y += step)
+    {
+      this.ctx.beginPath();
+      this.ctx.moveTo(p1.x, y);
+      this.ctx.lineTo(p2.x, y);
+      this.ctx.stroke();
+    }
+
+    this.ctx.strokeStyle = this.origin.strokeStyle;
+    this.ctx.lineWidth = this.origin.lineWidth;
+
     this.ctx.beginPath();
     this.ctx.moveTo(p1.x, 0);
     this.ctx.lineTo(p2.x, 0);
     this.ctx.moveTo(0, p1.y);
     this.ctx.lineTo(0, p2.y);
     this.ctx.stroke();
-
-    this.ctx.restore();
   }
 
   Render()
   {
+    this.style.overflow ="hidden";
+    this.style.display = "inline-block";
+
     this.canvas = document.createElement("canvas");
     this.canvas.id = "main_canvas";
     this.canvas.width = this.size.width;
     this.canvas.height = this.size.height;        
-    this.canvas.style.border = "1px solid #f00";
-    this.canvas.addEventListener("wheel", this.OnWheel);
-    this.canvas.addEventListener('mousemove', this.OnMouseMove_Canvas);
-    this.canvas.addEventListener('mousedown', this.OnMouseDown_Canvas);
-    this.canvas.addEventListener('mouseup', this.OnMouseUp_Canvas);
+    this.mode = "pan";
     this.shadowRoot.appendChild(this.canvas);
 
     this.ctx = this.canvas.getContext("2d");
@@ -273,6 +277,168 @@ class Viewport_Buddy extends HTMLElement
   }
 
   // Misc =========================================================================================
+
+  Select_Drawable(selected_shape)
+  {
+    const vp = this;
+    const target =
+    {
+      get pos() {return selected_shape.pos},
+      get scale() {return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}},
+      angle: 0,
+      selected_shape,
+      Render(ctx)
+      {
+        //let m = new DOMMatrix();
+        //m = m.translate(this.global.pos.x, this.global.pos.y);
+        //m = m.scale(this.global.scale.x, this.global.scale.y);
+        //m = m.rotate(this.global.angle);
+        //const sp = new DOMPointReadOnly(sx, sy).matrixTransform(m);
+        //ctx.save();
+        //ctx.scale(shape.scale.x, shape.scale.y);
+        //ctx.rotate(shape.angle);
+    
+        ctx.strokeStyle = "#0f0";
+        ctx.beginPath();
+        ctx.moveTo(0, 150);
+        ctx.lineTo(0, -100);
+        ctx.lineTo(-100, -100);
+        ctx.lineTo(-100, 100);
+        ctx.lineTo(100, 100);
+        ctx.lineTo(100, -100);
+        ctx.lineTo(0, -100);
+        ctx.stroke();
+
+        //ctx.restore();
+      }
+    };
+
+    const btn = new Path2D();
+    btn.moveTo(10, 10);
+    btn.lineTo(-10, 10);
+    btn.lineTo(-10, -10);
+    btn.lineTo(10, -10);
+    btn.closePath();
+
+    const scale_btn =
+    {
+      get pos() 
+      {
+        return {x: selected_shape.pos.x+(100/vp.camera.scale.x), y: selected_shape.pos.y+(100/vp.camera.scale.y)};
+      },
+      get scale() 
+      {
+        return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}
+      },
+      angle: 0,
+      type: "scale",
+      selected_shape,
+      path: btn,
+      Render(ctx)
+      {
+        ctx.fillStyle = "#00f";
+        ctx.fill(this.path);
+      }
+    };
+    
+    const rotate_btn =
+    {
+      get pos() {return selected_shape.pos},
+      get scale() {return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}},
+      angle: 0,
+      selected_shape,
+      Render(ctx)
+      {
+        ctx.save()
+        ctx.fillStyle = "#00f";
+        ctx.fill(btn);
+        ctx.restore()
+      }
+    };
+
+    const move_btn =
+    {
+      get pos() {return selected_shape.pos},
+      get scale() {return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}},
+      angle: 0,
+      selected_shape,
+      Render(ctx)
+      {
+        ctx.fillStyle = "#00f";
+        ctx.fill(btn);
+      }
+    };
+
+    this.sys_shapes = [target, rotate_btn, scale_btn, move_btn];
+    this.Render_Update();
+  }
+
+  Drawable_Selected(x, y)
+  {
+    let res;
+
+    res =  this.Shape_Selected(this.sys_shapes, x, y);
+    if (!res)
+    {
+      res =  this.Shape_Selected(this.shapes, x, y);
+    }
+
+    return res;
+  }
+
+  Shape_Selected(shapes, x, y)
+  {
+    let res;
+
+    if (shapes && shapes.length>0)
+    {
+      for (const shape of shapes)
+      {
+        //if (shape.can_move)
+        {
+          const is_in_path = this.Is_Point_In_Path(shape, x, y);
+          if (is_in_path)
+          {
+            res = shape;
+            break;
+          }
+        }
+      }
+    }
+
+    return res;
+  }
+
+  Apply_Drawable(drawable)
+  {
+    this.ctx.translate(drawable.pos.x, drawable.pos.y);
+    this.ctx.scale(drawable.scale.x, drawable.scale.y);
+    this.ctx.rotate(drawable.angle);
+  }
+
+  Apply_Camera()
+  {
+    this.ctx.scale(this.camera.scale.x, this.camera.scale.y);
+    this.ctx.translate(-this.camera.pos.x, -this.camera.pos.y);
+    this.ctx.rotate(this.camera.angle);
+  }
+
+  Is_Point_In_Path(drawable, x, y)
+  {
+    let  res = false;
+
+    if (drawable.path)
+    {
+      this.ctx.save();
+      this.Apply_Camera();
+      this.Apply_Drawable(drawable);
+
+      res = this.ctx.isPointInPath(drawable.path, x, y);
+      this.ctx.restore();
+    }
+
+    return res;
+  }
 
   To_Canvas_Pt(sx, sy)
   {
