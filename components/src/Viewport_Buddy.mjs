@@ -58,12 +58,14 @@ class Viewport_Buddy extends HTMLElement
     const shape = this.Drawable_Selected(event.offsetX, event.offsetY);
     if (shape && shape.type == "rotate")
     {
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const offset = {x: event_pos.x-shape.selected_shape.pos.x, y: event_pos.y-shape.selected_shape.pos.y};
       this.cmd = 
       {
         id: "rotate", 
-        event_x: event.offsetX, 
-        event_y: event.offsetY, 
-        shape
+        offset,
+        shape,
+        original_angle: shape.selected_shape.angle
       };
     }
     else if (shape && shape.type == "scale")
@@ -111,6 +113,17 @@ class Viewport_Buddy extends HTMLElement
 
       shape.pos = 
         {x: event_pos.x-this.cmd.offset.x, y: event_pos.y-this.cmd.offset.y};
+
+      this.Render_Update();
+    }
+    else if (this.cmd && this.cmd.id == "rotate")
+    {
+      const shape = this.cmd.shape.selected_shape;
+      const event_pos = this.To_Canvas_Pt(event.offsetX, event.offsetY);
+      const offset = {x: event_pos.x-shape.pos.x, y: event_pos.y-shape.pos.y};
+      const event_angle = this.To_Angle(offset, shape.scale);
+
+      shape.angle = this.cmd.original_angle+event_angle;
 
       this.Render_Update();
     }
@@ -179,8 +192,6 @@ class Viewport_Buddy extends HTMLElement
 
   Render_Update()
   {
-    let shape;
-
     this.ctx.save();
     this.Apply_Camera();
 
@@ -224,6 +235,7 @@ class Viewport_Buddy extends HTMLElement
     
     this.ctx.strokeStyle = this.marks.strokeStyle;
     this.ctx.lineWidth = this.marks.lineWidth;
+    this.ctx.setLineDash([2, 4]);
     const step = this.marks.step;
     for (let x = Math.ceil(p1.x/step)*step; x < p2.x; x += step)
     {
@@ -289,36 +301,32 @@ class Viewport_Buddy extends HTMLElement
       selected_shape,
       Render(ctx)
       {
-        //let m = new DOMMatrix();
-        //m = m.translate(this.global.pos.x, this.global.pos.y);
-        //m = m.scale(this.global.scale.x, this.global.scale.y);
-        //m = m.rotate(this.global.angle);
-        //const sp = new DOMPointReadOnly(sx, sy).matrixTransform(m);
-        //ctx.save();
-        //ctx.scale(shape.scale.x, shape.scale.y);
-        //ctx.rotate(shape.angle);
-    
-        ctx.strokeStyle = "#0f0";
+        ctx.setLineDash([2, 4]);
+        ctx.strokeStyle = "#888";
+
         ctx.beginPath();
         ctx.moveTo(0, 150);
         ctx.lineTo(0, -100);
+        ctx.moveTo(100, 100);
+        ctx.lineTo(100, -100);
         ctx.lineTo(-100, -100);
         ctx.lineTo(-100, 100);
         ctx.lineTo(100, 100);
-        ctx.lineTo(100, -100);
-        ctx.lineTo(0, -100);
+        ctx.moveTo(-100, 0);
+        ctx.lineTo(100, 0);
         ctx.stroke();
-
-        //ctx.restore();
       }
     };
 
     const btn = new Path2D();
-    btn.moveTo(10, 10);
-    btn.lineTo(-10, 10);
-    btn.lineTo(-10, -10);
-    btn.lineTo(10, -10);
-    btn.closePath();
+    btn.arc(0, 0, 10, 0, 2*Math.PI);
+    const btn2 = new Path2D();
+    btn2.arc(0, 0, 5, 0, 2*Math.PI);
+    //btn.moveTo(10, 10);
+    //btn.lineTo(-10, 10);
+    //btn.lineTo(-10, -10);
+    //btn.lineTo(10, -10);
+    //btn.closePath();
 
     const scale_btn =
     {
@@ -336,23 +344,33 @@ class Viewport_Buddy extends HTMLElement
       path: btn,
       Render(ctx)
       {
-        ctx.fillStyle = "#00f";
+        ctx.fillStyle = "#888";
         ctx.fill(this.path);
+        ctx.fillStyle = "#0f0";
+        ctx.fill(btn2);
       }
     };
     
     const rotate_btn =
     {
-      get pos() {return selected_shape.pos},
-      get scale() {return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}},
+      get pos() 
+      {
+        return {x: selected_shape.pos.x, y: selected_shape.pos.y+(150/vp.camera.scale.y)};
+      },
+      get scale() 
+      {
+        return {x: 1/vp.camera.scale.x, y: 1/vp.camera.scale.y}
+      },
       angle: 0,
+      type: "rotate",
       selected_shape,
+      path: btn,
       Render(ctx)
       {
-        ctx.save()
-        ctx.fillStyle = "#00f";
-        ctx.fill(btn);
-        ctx.restore()
+        ctx.fillStyle = "#888";
+        ctx.fill(this.path);
+        ctx.fillStyle = "#0f0";
+        ctx.fill(btn2);
       }
     };
 
@@ -364,7 +382,7 @@ class Viewport_Buddy extends HTMLElement
       selected_shape,
       Render(ctx)
       {
-        ctx.fillStyle = "#00f";
+        ctx.fillStyle = "#888";
         ctx.fill(btn);
       }
     };
@@ -474,6 +492,16 @@ class Viewport_Buddy extends HTMLElement
     const pt = sp.matrixTransform(m);
 
     return pt;
+  }
+
+  To_Angle(pos, scale)
+  {
+    const x_sign = Math.sign(scale.x);
+    const y_sign = Math.sign(scale.y);
+    let angle = Math.atan2(pos.y, pos.x) - (Math.PI/2);
+    angle = angle * (x_sign*y_sign);
+
+    return angle;
   }
 }
 
