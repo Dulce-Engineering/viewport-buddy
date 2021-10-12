@@ -1,6 +1,6 @@
 # Viewport Buddy
 
-A canvas-like Web Component whose contents can be scrolled, zoomed, and selected with the mouse. Intended for use in applications that require a graphical editing area.
+A canvas-based Web Component whose contents can be scrolled, zoomed, and selected with the mouse. Intended for use in applications that require a graphical editing area. Built in JavaScript with no dependencies.
 
 The following screenshot shows three simple house shapes in a simple scene. The user can move, rotate, and scale shapes via drag and drop. Additionally, it is possible to move and zoom the canvas via drag-and-drop and the mouse wheel.
 
