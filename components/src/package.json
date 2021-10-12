@@ -1,0 +1,25 @@
+{
+  "name": "viewport-buddy",
+  "version": "1.0.0",
+  "description": "A canvas-based Web Component whose contents can be scrolled, zoomed, and selected with the mouse. Intended for use in applications that require a graphical editing area. Built in JavaScript with no dependencies.",
+  "main": "Viewport_Buddy.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dulce-Engineering/viewport-buddy.git"
+  },
+  "keywords": [
+    "web",
+    "component",
+    "canvas",
+    "javascript"
+  ],
+  "author": "Dulce Engineering",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Dulce-Engineering/viewport-buddy/issues"
+  },
+  "homepage": "https://github.com/Dulce-Engineering/viewport-buddy#readme"
+}
